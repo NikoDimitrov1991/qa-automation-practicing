@@ -82,6 +82,71 @@
 - `OopDemo.cs` — polymorphism demonstration
 - Updated `Program.cs` — added menu option 4
 
+## Sub-session C - 2026-07-14 (~1.5h)
+
+### What was covered
+
+Focused on lambdas and LINQ (AC-3 and AC-4 of SDP-37390).
+
+- Progression: **delegate → `Func<T>` → lambda → LINQ**. Each step motivates the next.
+- Delegate = "type for a method reference"; `Func<int, bool>` is a built-in generic delegate for "method that takes int, returns bool".
+- Lambda = anonymous inline method. Syntax: `x => x > 0`. Replaces short helper methods that would be used once.
+- LINQ = collection of extension methods (`Where`, `Select`, `OrderBy`, `GroupBy`, `Any`, `All`, `Count`, `First`, ...) that accept lambdas and return new collections. Chainable with `.` — each call returns something the next can be called on.
+- Extension methods explained via `this` keyword in the first parameter — that is what lets `bookings.Where(...)` work despite `Where` not being defined in `List`.
+- Method syntax used throughout (`.Where(...).Select(...)`); no query syntax (`from x in y select ...`) — the method syntax dominates in real codebases.
+
+### `LinqDemo.cs` exercises
+
+1. **Where + Count** — filter and count `EventMessage` and `HeartbeatMessage` subtypes.
+2. **Any + All** — check "at least one invalid" (using `OfType<IValidatable>()`), and "all have non-empty Topic".
+3. **Select** — project to `Topic` strings with `.Distinct()`, and project valid messages to their `Describe()` output using `OfType + Where + Cast + Select`.
+4. **OrderBy + ThenByDescending** — sort by Topic ASC, then Timestamp DESC.
+5. **GroupBy** — group messages by Topic (iterate each group), then count-by-type projected into an anonymous type `{ Type, Count }` sorted DESC.
+
+### Java → C# differences noticed
+
+- **Lambda arrow** — `=>` in C#, `->` in Java.
+- **`Func<>` and `Action<>`** — generic delegate types. `Func<int, bool>` = "int → bool". Java's `Predicate<Integer>` and `Function<A, B>`.
+- **Extension methods** — allow "attaching" methods to existing types via `this` in the first parameter. Java has no equivalent (must use utility classes or wrappers).
+- **`Select` vs `map`** — C# named its projection method `Select` (SQL-inspired), Java uses `map` (functional-inspired).
+- **`OfType<T>()`** — C# specific. Filters an `IEnumerable` to only elements of type `T`, safely. Java's equivalent needs `filter + cast`.
+- **`Cast<T>()`** — throws if any element cannot be cast (unlike `OfType<T>()` which silently skips). Used when you know all elements are of a given type.
+- **Anonymous types** (`new { Type = g.Key, Count = g.Count() }`) — compiler-generated types with no explicit class declaration. Requires `var`. Java has no direct equivalent (records or DTOs required).
+- **LINQ is lazy** — `Where`, `Select` return `IEnumerable`, not materialized `List`. Call `.ToList()` to force execution.
+- **LINQ never mutates the source** — always returns a new collection. Functional style.
+
+### On the shape of `LinqDemo.cs` — learning code vs production code
+
+This file is intentionally **learning code**, not production-ready code. Signs:
+
+- Lots of `Console.WriteLine` for section headers and output visualization.
+- Many small named intermediate variables (`events`, `heartbeatCount`, `hasInvalid`, `topics`, ...).
+- Everything in one long `Run()` method with no abstraction.
+
+In a real project, most of this would be refactored into something like:
+
+```csharp
+public class MessageAnalyzer
+{
+    public MessageStats Analyze(List<KafkaMessage> messages) => new MessageStats
+    {
+        Total = messages.Count,
+        EventCount = messages.Count(m => m is EventMessage),
+        HasInvalid = messages.OfType<IValidatable>().Any(v => !v.IsValid()),
+        TopicBreakdown = messages.GroupBy(m => m.Topic).ToDictionary(g => g.Key, g => g.Count()),
+    };
+}
+```
+
+Tests would then assert on `MessageStats`, no `Console.WriteLine` needed. Production code does not print — it returns data to be verified via test assertions or serialized to callers.
+
+The learning-code style is fine here because the goal is to make **each LINQ operator individually visible**. That evidences AC-3 and AC-4 clearly to the QA Lead. Refactoring toward a clean `MessageAnalyzer` will happen in SDP-37391 (API automation) and SDP-37395 (real project contribution) — with test assertions replacing prints.
+
+### Files produced this session
+
+- `LinqDemo.cs` — 5 LINQ exercises (Where, Any/All, Select, OrderBy, GroupBy)
+- Updated `Program.cs` — added menu option 5
+
 ### AC coverage so far (SDP-37390)
 
 - ✅ Variables, data types (`int`, `string`, `bool`, `DateTime`)
@@ -89,8 +154,8 @@
 - ✅ Conditionals (`if/else`, `switch`)
 - ✅ Functions / methods
 - ✅ OOP: classes, inheritance, encapsulation (properties), polymorphism (`virtual`/`override`), interfaces
+- ✅ LINQ queries (`Where`, `Select`, `OrderBy`, `GroupBy`, `Any`, `All`, `Count`, `Distinct`, `OfType`, `Cast`)
+- ✅ Lambda expressions (single-parameter, multi-parameter, expression-bodied and block-bodied)
 - ✅ Code pushed to Git repo
-- ⏳ LINQ (basic `.Contains()` used, no full LINQ query yet) — next session
-- ⏳ Lambda expressions — next session
-- ⏳ Dependency Injection — later session
+- ⏳ Dependency Injection — next session
 - ⏳ FluentAssertions — covered in SDP-37392, minimal touch here
