@@ -147,6 +147,75 @@ The learning-code style is fine here because the goal is to make **each LINQ ope
 - `LinqDemo.cs` — 5 LINQ exercises (Where, Any/All, Select, OrderBy, GroupBy)
 - Updated `Program.cs` — added menu option 5
 
+## Sub-session D - 2026-07-18 (~1h)
+
+### What was covered
+
+Focus: Dependency Injection basics (last AC to fill for SDP-37390).
+
+- Why DI: hard-coded `new` inside classes = untestable, unswappable. Solution: classes accept dependencies via constructor, work only against interfaces.
+- **Composition Root** — the one place in the app where concrete implementations are instantiated. Everywhere else uses interfaces. In .NET this is usually `Program.cs`.
+- **DI Container** — `Microsoft.Extensions.DependencyInjection` (installed via `dotnet add package`). Register once, container constructs the object graph via reflection.
+- **Lifetimes** — brief overview: `Transient` (new every time), `Scoped` (per web request), `Singleton` (one for app lifetime). For a console app all three behave similarly; used `Singleton` throughout the demo.
+- **Constructor injection** — the standard pattern. Class declares `private readonly IFoo _foo;` and initialises it in the constructor. `readonly` prevents accidental reassignment.
+- **Multiple implementations of one interface** — DI automatically collects all matching registrations into `IEnumerable<T>` when requested.
+
+### `DiDemo` architecture
+
+Small "production-shape" refactor of Sub-session C's validation logic:
+
+```
+IMessageValidator (interface, in Services/)
+    ├── string Name { get; }
+    └── bool Validate(KafkaMessage msg)
+
+TopicValidator   : IMessageValidator   — checks Topic is non-empty
+PayloadValidator : IMessageValidator   — checks Payload is non-empty
+
+MessageAnalyzer
+    ├── ctor takes IEnumerable<IMessageValidator>
+    └── Analyze(List<KafkaMessage>) → List<ValidationResult>
+
+ValidationResult (record) — (ValidatorName, MessageType, IsValid)
+```
+
+`DiDemo.Run()` acts as a mini Composition Root:
+
+1. Builds `ServiceCollection`
+2. Registers 2 validators + `MessageAnalyzer`
+3. Calls `BuildServiceProvider()`
+4. `GetRequiredService<MessageAnalyzer>()` — container assembles the graph
+5. Uses the analyzer normally, groups results by message type for display
+
+### Java → C# differences noticed
+
+- **`record` type** — one-line immutable class with auto Equals/HashCode/ToString. `public record ValidationResult(string A, string B, bool C);`. Java has records since v14 — same idea.
+- **Expression-bodied property** — `public string Name => "TopicValidator";` is the compact form of a get-only property. No exact Java equivalent (records or lombok closest).
+- **`readonly` modifier** — locks a field to constructor-only assignment. Java uses `final`.
+- **Naming convention `_camelCase` for private fields** — common in C#. Java varies; some use `_` prefix, most use plain `camelCase`.
+- **Constructor injection is idiomatic in C#** — same as Java Spring. The DI container inspects the constructor via reflection.
+- **`AddSingleton<IFoo, ConcreteFoo>()`** — Java Spring equivalent is `@Bean` + `@Scope("singleton")` on the concrete implementation.
+- **`IEnumerable<T>` for "give me all implementations"** — Java Spring uses `@Autowired List<T>` for the same behaviour.
+
+### Mistakes made and learned from
+
+- **`ValidatorMessage` vs `ValidatorName`** — first version of the record used `ValidatorMessage`, which was misleading (sounds like "the validator's message" rather than "the validator's name"). Corrected via Rider's Rename refactoring (Shift+F6).
+- **`using` above vs below `namespace`** — first `IMessageValidator.cs` had `namespace` above `using`. Both compile, but the C# convention is `using` first. Later files corrected.
+
+### Nullable reference warnings — acknowledged
+
+Compilation produced 6 warnings (CS8600 / CS8604) about `Console.ReadLine()` potentially returning `null`. .NET 6+ enforces **nullable reference types**: `string` disallows null; `string?` is required for nullable strings. Left unresolved for now — will address in SDP-37391 when API responses require robust null handling. This is a real warning worth fixing eventually, not a Rider quirk.
+
+### Files produced this session
+
+- `Services/IMessageValidator.cs`
+- `Services/TopicValidator.cs`
+- `Services/PayloadValidator.cs`
+- `Services/MessageAnalyzer.cs` (+ `ValidationResult` record)
+- `DiDemo.cs` — Composition Root demo
+- Updated `Program.cs` — added menu option 6
+- Updated `CSharpFundamentals.csproj` — added `Microsoft.Extensions.DependencyInjection` NuGet reference
+
 ### AC coverage so far (SDP-37390)
 
 - ✅ Variables, data types (`int`, `string`, `bool`, `DateTime`)
@@ -156,6 +225,12 @@ The learning-code style is fine here because the goal is to make **each LINQ ope
 - ✅ OOP: classes, inheritance, encapsulation (properties), polymorphism (`virtual`/`override`), interfaces
 - ✅ LINQ queries (`Where`, `Select`, `OrderBy`, `GroupBy`, `Any`, `All`, `Count`, `Distinct`, `OfType`, `Cast`)
 - ✅ Lambda expressions (single-parameter, multi-parameter, expression-bodied and block-bodied)
+- ✅ Dependency Injection basics (Composition Root, `ServiceCollection`, constructor injection, `IEnumerable<T>` for multi-registration)
 - ✅ Code pushed to Git repo
-- ⏳ Dependency Injection — next session
 - ⏳ FluentAssertions — covered in SDP-37392, minimal touch here
+- ⏳ Code reviewed by mentor / QA Lead — pending after Sub-session D closes
+
+**SDP-37390 is now technically complete pending QA Lead review.** Next steps:
+1. Post evidence comment on the Jira ticket (draft first, preview, then publish).
+2. Transition Backlog → In Progress (if not already) → Done (or await review).
+3. Begin SDP-37391 (API automation with RestSharp).
