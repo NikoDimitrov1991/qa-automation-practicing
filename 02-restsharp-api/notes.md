@@ -43,9 +43,65 @@ Very similar APIs. C# uses `[]` for attributes (Java `@` for annotations). Most 
 - ⏳ Responses validated for status codes — next sub-session
 - ⏳ Response body validation (JSON parsing + field assertions) — Sub-sessions B/C
 
-### Next up (Sub-session B)
+## Sub-session B - 2026-07-22 (~30 min)
 
-- Install `RestSharp` NuGet package
-- Understand `RestClient` and `RestRequest`
-- Write first real API test: `GET https://restful-booker.herokuapp.com/ping` (health-check endpoint) with assertion `status == 201`
-- Show the difference between primitive assertion (status code) vs body assertion (JSON parsing) — the latter comes in Sub-session C
+- `RestSharp` NuGet installed.
+- Short lecture: `RestClient` (base URL, reusable) vs `RestRequest` (per-call, path + method), `async/await` for HTTP, `RestResponse.StatusCode` + `HttpStatusCode` enum.
+- Practice: `PingTests.cs` with `SetUp/TearDown` pattern, one test `Ping_ReturnsCreated` verifying `GET /ping` returns 201.
+- Passed on first `dotnet test` run.
+
+## Sub-session C - 2026-07-24 (~1h)
+
+### What was covered
+
+- Lecture on JSON deserialization + POCO classes: why we don't parse response bodies as raw strings, how RestSharp's generic `ExecuteAsync<T>` auto-maps JSON to a C# object.
+- Practice: built `Booking` + `BookingDates` POCO classes in `Models/` folder.
+- Practice: wrote `GetBooking_WithValidId_ReturnsBookingData` — real test with body assertions.
+- Practice variation (negative test): wrote `GetBooking_WithInvalidId_ReturnsNotFound`.
+
+### POCO class design decisions
+
+- Used `{ get; set; }` (mutable) instead of `{ get; }` (immutable) — deserializer needs to set values post-construction.
+- No explicit constructor — C# provides a default parameterless one, which is what deserializer needs.
+- Used `[JsonPropertyName("firstname")]` attribute to map lowercase JSON keys to PascalCase C# properties. Cleaner than renaming C# properties to lowercase.
+- `BookingDates` (nested type) also `{ get; set; }` for the same reason.
+
+### Real debugging that happened
+
+**Bug 1: RestSharp default request rejected by API**
+First run got HTTP 418 ("I'm a teapot") — anti-bot response from Restful Booker. Root cause: RestSharp doesn't send `User-Agent` or `Accept` header by default. Fix: `_client.AddDefaultHeader("Accept", "application/json");` + `_client.AddDefaultHeader("User-Agent", "RestSharp-Test");` in `SetUp`.
+
+**Bug 2: `/booking/1` returned 404**
+Test data hazard — Restful Booker is a shared public sandbox. Other users delete bookings. Verified via `curl "https://.../booking"` that IDs 1 and 2 no longer exist; ID 3 was the first valid one. Fix: hardcoded `/booking/3`.
+
+**Bug 3: `/booking/9999` (for negative test) returned 200**
+The API had grown past 9999 real bookings. Fix: bumped to `/booking/999999999` to stay outside any realistic dataset.
+
+### Big-picture QA lessons from this session
+
+- **Hardcoded test data on shared sandboxes is flaky.** Best practice for real API testing: each test creates its own data (POST), reads/asserts against it, and cleans up (DELETE). Sub-session D (POST + auth) will show this pattern.
+- **Failing tests are the test doing its job.** The 418 and 404s weren't "broken tests" — they revealed real environment realities. QA mindset: read the failure, don't just re-run.
+- **Negative tests matter.** Half of production bugs are in error-handling code paths. `GetBooking_WithInvalidId_ReturnsNotFound` is exactly the kind of test that catches "API silently swallows errors" regressions.
+
+### Files produced this session
+
+- `Models/Booking.cs` — POCO for /booking/{id} response
+- `Models/BookingDates.cs` — nested POCO
+- `BookingTests.cs` — 2 tests: happy path + negative
+
+### AC coverage so far (SDP-37391)
+
+- ✅ Test project created (NUnit)
+- ✅ GET requests to public API
+- ✅ Status code assertions (200, 201, 404)
+- ✅ Response body validation via POCO deserialization + property assertions
+- ⏳ POST requests — Sub-session D
+- ⏳ Auth flow (token) — Sub-session D
+- ⏳ FluentAssertions — deferred to SDP-37392
+
+### Next up (Sub-session D)
+
+- POST `/auth` to obtain a token
+- POST `/booking` to create a booking (with body serialization: C# → JSON)
+- Full lifecycle test: create → read → assert → delete (using the token)
+- Introduces `RestRequest.AddJsonBody(...)`, `[JsonPropertyName]` on request DTOs, chained tests using instance state
