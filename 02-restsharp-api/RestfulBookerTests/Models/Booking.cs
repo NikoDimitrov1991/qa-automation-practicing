@@ -4,15 +4,15 @@ namespace RestfulBookerTests.Models;
 
 public class Booking
 {
-    [JsonPropertyName("firstname")] public string Firstname { get; set; }
+    [JsonPropertyName("firstname")] public required string Firstname { get; set; }
 
-    [JsonPropertyName("lastname")] public string Lastname { get; set; }
+    [JsonPropertyName("lastname")] public required string Lastname { get; set; }
 
-    [JsonPropertyName("totalprice")] public int Totalprice { get; set; }
+    [JsonPropertyName("totalprice")] public required int Totalprice { get; set; }           
 
-    [JsonPropertyName("depositpaid")] public bool Depositpaid { get; set; }
+    [JsonPropertyName("depositpaid")] public required bool Depositpaid { get; set; }
 
-    [JsonPropertyName("bookingdates")] public BookingDates Bookingdates { get; set; }
+    [JsonPropertyName("bookingdates")] public required BookingDates Bookingdates { get; set; }
 
-    [JsonPropertyName("additionalneeds")] public string Additionalneeds { get; set; }
+    [JsonPropertyName("additionalneeds")] public required string Additionalneeds { get; set; }
 }

@@ -99,9 +99,52 @@ The API had grown past 9999 real bookings. Fix: bumped to `/booking/999999999` t
 - ⏳ Auth flow (token) — Sub-session D
 - ⏳ FluentAssertions — deferred to SDP-37392
 
-### Next up (Sub-session D)
+## Sub-session D1 - 2026-07-27 (~1h)
 
-- POST `/auth` to obtain a token
-- POST `/booking` to create a booking (with body serialization: C# → JSON)
-- Full lifecycle test: create → read → assert → delete (using the token)
-- Introduces `RestRequest.AddJsonBody(...)`, `[JsonPropertyName]` on request DTOs, chained tests using instance state
+### What was covered
+
+First half of the POST/auth work. Focused only on authentication; POST /booking deferred to next session.
+
+- Lecture: auth flow (POST /auth → token → use token for later mutating requests). Restful Booker uses hardcoded admin/password123 credentials in its docs since it's a public sandbox.
+- Practice: `AuthRequest` and `AuthResponse` POCO classes in `Models/` (with `[JsonPropertyName]`).
+- Practice: `AuthTests.PostAuth_WithValidCredentials_ReturnsToken` — full POST test with body serialization via `AddJsonBody`.
+- Cleanup: resolved all 9 `CS8618` nullable warnings by adding `required` keyword to every POCO property.
+
+### Key concepts introduced
+
+- **`AddJsonBody(object)`** — RestSharp method that serializes a C# object to JSON and sets it as the request body. Auto-adds `Content-Type: application/json` header.
+- **`ExecuteAsync<AuthResponse>(request)`** — same generic deserialization pattern from Sub-session C, applied to a POST response.
+- **Object initializer syntax** — `new AuthRequest { Username = "admin", Password = "..." }`. Works because POCOs have public setters.
+- **`required` keyword** (C# 11+) — declares that a property must have a value before the object is usable. Works with modern System.Text.Json deserialization (.NET 7+): if a JSON payload is missing a required property, deserialization throws instead of silently leaving `null`. Fail-fast semantics.
+
+### Mistakes and self-corrections
+
+- **First AuthTests used non-generic `ExecuteAsync`** — `response.Data.Token` came up red in Rider because non-generic `RestResponse` has no `Data` property. Fixed by adding `<AuthResponse>` type parameter.
+- **First AuthTests used substring assert (`Contains.Substring("token")`)** — pointed out that this passes even on error bodies like `{"error": "invalid token"}`. Replaced with `response.Data.Token Is.Not.Null.And.Not.Empty` — direct object assertion.
+- **Nullable warnings resolved with `required`** rather than `= null!;`. Trade-off documented above; `required` is stricter (fails at deserialize time if API omits the field) which is desirable for tests.
+
+### Files produced this session
+
+- `Models/AuthRequest.cs` — POCO for /auth request body
+- `Models/AuthResponse.cs` — POCO for /auth response
+- `AuthTests.cs` — 1 test: `PostAuth_WithValidCredentials_ReturnsToken`
+- All existing POCOs (`Booking`, `BookingDates`, `AuthRequest`, `AuthResponse`) now use `required` on every property
+
+### AC coverage so far (SDP-37391)
+
+- ✅ Test project created (NUnit)
+- ✅ GET requests (Ping, GetBooking)
+- ✅ POST requests (Auth)
+- ✅ Status code assertions (200, 201, 404)
+- ✅ Response body validation (deserialize + assert on properties)
+- ⏳ Full booking lifecycle (create + read + delete) — Sub-session D2
+- ⏳ Using auth token in later requests — Sub-session D2
+- ⏳ FluentAssertions — deferred to SDP-37392
+
+### Next up (Sub-session D2)
+
+- POST `/booking` to create a new booking (with a Booking-shaped request body — reuse existing POCO or create BookingRequest)
+- Capture the returned bookingId
+- Use the token from AuthTests in a DELETE `/booking/{id}` request (Restful Booker uses `Cookie: token=...` header)
+- Optionally: full lifecycle test — create, GET-verify, delete, GET-verify-404
+- Introduces cross-test state sharing (`[OneTimeSetUp]` for token) or in-test setup patterns
