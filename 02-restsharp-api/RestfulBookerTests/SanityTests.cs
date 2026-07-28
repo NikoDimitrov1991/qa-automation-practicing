@@ -1,5 +1,6 @@
 namespace RestfulBookerTests;
 
+[NonParallelizable]
 [TestFixture]
 public class SanityTests
 {

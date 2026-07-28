@@ -14,5 +14,5 @@ public class Booking
 
     [JsonPropertyName("bookingdates")] public required BookingDates Bookingdates { get; set; }
 
-    [JsonPropertyName("additionalneeds")] public required string Additionalneeds { get; set; }
+    [JsonPropertyName("additionalneeds")] public string? Additionalneeds { get; set; }
 }

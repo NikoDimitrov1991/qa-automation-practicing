@@ -3,6 +3,7 @@ using RestSharp;
 
 namespace RestfulBookerTests;
 
+[NonParallelizable]
 [TestFixture]
 public class PingTests
 {

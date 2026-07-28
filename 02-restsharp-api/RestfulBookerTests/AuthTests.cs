@@ -4,6 +4,7 @@ using RestfulBookerTests.Models;
 
 namespace RestfulBookerTests;
 
+[NonParallelizable]
 [TestFixture]
 public class AuthTests
 {
