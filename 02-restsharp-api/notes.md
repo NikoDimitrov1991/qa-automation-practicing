@@ -141,10 +141,59 @@ First half of the POST/auth work. Focused only on authentication; POST /booking 
 - ⏳ Using auth token in later requests — Sub-session D2
 - ⏳ FluentAssertions — deferred to SDP-37392
 
-### Next up (Sub-session D2)
+## Sub-session D2 - 2026-07-29 (~1.5h)
 
-- POST `/booking` to create a new booking (with a Booking-shaped request body — reuse existing POCO or create BookingRequest)
-- Capture the returned bookingId
-- Use the token from AuthTests in a DELETE `/booking/{id}` request (Restful Booker uses `Cookie: token=...` header)
-- Optionally: full lifecycle test — create, GET-verify, delete, GET-verify-404
-- Introduces cross-test state sharing (`[OneTimeSetUp]` for token) or in-test setup patterns
+### What was covered
+
+- New POCO `CreateBookingResponse` for the POST /booking response (nested Bookingid + Booking wrapper).
+- New test `PostBooking_WithValidData_CreatesAndReturnsBookingId` demonstrating POST with body + echo-verification.
+- Full lifecycle test `FullLifecycle_CreateReadDeleteVerify_AllStepsSucceed`: authenticate → create → read → delete (with token in Cookie header) → verify 404.
+- Discovered and fixed test parallelism flakiness via `[NonParallelizable]` attribute on every test class.
+- Refactored asserts to use `newBooking.X` instead of hardcoded strings (single source of truth pattern).
+
+### Key concepts introduced
+
+- **`AddHeader(name, value)`** — per-request header, distinct from `AddDefaultHeader` on client.
+- **Non-generic `ExecuteAsync(request)`** — when response has no meaningful body (DELETE).
+- **`Cookie: token=...` auth style** — legacy pattern used by Restful Booker; modern APIs use `Authorization: Bearer <token>`.
+- **String interpolation in paths** — `$"/booking/{bookingId}"`.
+- **Test data as single source of truth** — asserts use `newBooking.Firstname`, not `"Nikolay"`. Refactor-resistant tests.
+
+### Real debugging that happened
+
+**Flaky test failure under parallel execution.** After adding the POST test, `GetBooking_WithValidId_ReturnsBookingData` started failing intermittently. Confirmed the test passed when run alone. Root cause: NUnit runs tests in parallel by default; Restful Booker (public sandbox) applies rate limiting to bursts of concurrent requests from the same client, returning 418/timeout for some. Fix: `[NonParallelizable]` on every test fixture serializes execution.
+
+**Additionalneeds `required` mismatch.** A booking record in the sandbox had `additionalneeds` field missing entirely (some other user modified it). With `required string Additionalneeds`, deserialization threw and `response.Data` became null. Fixed by relaxing to `string?` since the field is genuinely optional per the API. Lesson: `required` on response POCOs matches how strict the API contract really is, not how strict you wish it were.
+
+### Big-picture QA lessons from this session
+
+- **Parallel tests need explicit thought.** Default NUnit parallelism assumes tests are independent; hitting a shared public API breaks that assumption. In real Apollo services, we'll likely need `[NonParallelizable]` + isolated test data per test.
+- **Single source of truth for test data.** Asserts against `newBooking.Firstname` instead of `"Nikolay"` mean changing the test data anywhere doesn't drift the tests.
+- **Redundant null asserts.** `Is.EqualTo("X")` implicitly proves non-null. Explicit `Is.Not.Null` before it is dead code (though sometimes desired for clearer failure messages — a judgment call).
+- **Full lifecycle tests are self-contained.** They don't depend on any prior state in the sandbox, always create their own data, and verify both the operation succeeded (DELETE returned 201) and the real side effect happened (subsequent GET returns 404). This is the gold-standard automation pattern.
+
+### Files touched this session
+
+- `Models/CreateBookingResponse.cs` — new POCO
+- `Models/Booking.cs` — `Additionalneeds` relaxed to `string?`
+- `BookingTests.cs` — added `PostBooking_WithValidData_...` and `FullLifecycle_...`
+- All test fixtures gained `[NonParallelizable]`
+
+### AC coverage so far (SDP-37391)
+
+- ✅ Test project created (NUnit)
+- ✅ GET requests (Ping, GetBooking valid + invalid)
+- ✅ POST requests (Auth, CreateBooking)
+- ✅ DELETE requests (via full lifecycle)
+- ✅ Status code assertions (200, 201, 404)
+- ✅ Response body validation via POCO deserialization + field-by-field assertions
+- ✅ Auth token used in downstream request (Cookie header)
+- ⏳ FluentAssertions refactor — deferred to SDP-37392
+- ⏳ Optional cleanup pass (extract test helpers, remove weak `GetBooking_WithValidId_ReturnsBookingData` duplication) — Sub-session E
+
+### Next up (Sub-session E — cleanup / wrap-up)
+
+- Extract test-data builder helper (`BuildTestBooking()`)
+- Extract common HTTP helpers (`CreateBooking()`, `AuthenticateAndGetToken()`) to reduce duplication
+- Decide fate of `GetBooking_WithValidId_ReturnsBookingData` (weak assert + hardcoded ID vs. full lifecycle)
+- Write Jira evidence comment, transition SDP-37391 to Code Review
