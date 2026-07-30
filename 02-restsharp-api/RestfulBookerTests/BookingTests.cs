@@ -90,58 +90,23 @@ public class BookingTests
     public async Task FullLifecycle_CreateReadDeleteVerify_AllStepsSucceed()
     {
         // Step 1: Authenticate
-
-        // Arrange
-        var authBody = new AuthRequest
-        {
-            Username = "admin",
-            Password = "password123"
-        };
-        var authRequest = new RestRequest("/auth", Method.Post);
-        authRequest.AddJsonBody(authBody);
-
-        // Act
-        var authResponse = await _client.ExecuteAsync<AuthResponse>(authRequest);
-        var token = authResponse.Data.Token;
-
-        // Assert
+        var token = await AuthenticateAndGetToken();
         Assert.That(token, Is.Not.Null);
         Assert.That(token, Is.Not.Empty);
 
         // Step 2: Create booking
+        var newBooking = BuildTestBooking();
+        var created = await CreateBooking(newBooking);
+        var bookingId = created.Bookingid;
 
-        // Arrange
-        var newBooking = new Booking
-        {
-            Firstname = "Nikolay",
-            Lastname = "Dim",
-            Totalprice = 240,
-            Depositpaid = true,
-            Bookingdates = new BookingDates
-            {
-                Checkin = "2026-08-01",
-                Checkout = "2026-08-10"
-            },
-            Additionalneeds = "Dinner"
-        };
-        var createRequest = new RestRequest("/booking", Method.Post);
-        createRequest.AddJsonBody(newBooking);
-
-        // Act
-        var createResponse = await _client.ExecuteAsync<CreateBookingResponse>(createRequest);
-        var bookingId = createResponse.Data.Bookingid;
-
-        // Assert
-        Assert.That(createResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-        Assert.That(createResponse.Data, Is.Not.Null);
-        Assert.That(createResponse.Data.Bookingid, Is.GreaterThan(0));
-        Assert.That(createResponse.Data.Booking.Firstname, Is.EqualTo(newBooking.Firstname));
-        Assert.That(createResponse.Data.Booking.Lastname, Is.EqualTo(newBooking.Lastname));
-        Assert.That(createResponse.Data.Booking.Totalprice, Is.EqualTo(newBooking.Totalprice));
-        Assert.That(createResponse.Data.Booking.Depositpaid, Is.EqualTo(newBooking.Depositpaid));
-        Assert.That(createResponse.Data.Booking.Additionalneeds, Is.EqualTo(newBooking.Additionalneeds));
-
-
+        Assert.That(created, Is.Not.Null);
+        Assert.That(bookingId, Is.GreaterThan(0));
+        Assert.That(created.Booking.Firstname, Is.EqualTo(newBooking.Firstname));
+        Assert.That(created.Booking.Lastname, Is.EqualTo(newBooking.Lastname));
+        Assert.That(created.Booking.Totalprice, Is.EqualTo(newBooking.Totalprice));
+        Assert.That(created.Booking.Depositpaid, Is.EqualTo(newBooking.Depositpaid));
+        Assert.That(created.Booking.Additionalneeds, Is.EqualTo(newBooking.Additionalneeds));
+        
         // Step 3: Verify create - GET booking
 
         // Arrange
@@ -185,5 +150,43 @@ public class BookingTests
         // Assert 
         Assert.That(verifyDeleteResponse.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
         Assert.That(verifyDeleteResponse.Data, Is.Null);
+    }
+
+    private Booking BuildTestBooking()
+    {
+        return new Booking
+        {
+            Firstname = "Nikolay",
+            Lastname = "Dim",
+            Totalprice = 240,
+            Depositpaid = true,
+            Bookingdates = new BookingDates
+            {
+                Checkin = "2026-08-01",
+                Checkout = "2026-08-10"
+            },
+            Additionalneeds = "Dinner"
+        };
+    }
+
+    private async Task<CreateBookingResponse> CreateBooking(Booking booking)
+    {
+        var request = new RestRequest("/booking", Method.Post);
+        request.AddJsonBody(booking);
+        var response = await _client.ExecuteAsync<CreateBookingResponse>(request);
+        return response.Data;
+    }
+
+    private async Task<string> AuthenticateAndGetToken()
+    {
+        var authBody = new AuthRequest
+        {
+            Username = "admin",
+            Password = "password123"
+        };
+        var request = new RestRequest("/auth", Method.Post);
+        request.AddJsonBody(authBody);
+        var response = await _client.ExecuteAsync<AuthResponse>(request);
+        return response.Data.Token;
     }
 }
