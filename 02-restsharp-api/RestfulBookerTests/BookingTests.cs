@@ -25,26 +25,30 @@ public class BookingTests
     }
 
     [Test]
-    public async Task GetBooking_WithValidId_ReturnsBookingData()
+    public async Task GetBooking_AfterCreation_ReturnsCorrectData()
     {
-        // Arrange
-        const int existingBookingId = 3;
-        var request = new RestRequest($"/booking/{existingBookingId}", Method.Get);
+        // Arrange - create a fresh booking to guarantee it exists
+        var newBookig = BuildTestBooking();
+        var created = await CreateBooking(newBookig);
 
         // Act
+        var request = new RestRequest($"/booking/{created.Bookingid}", Method.Get);
         var response = await _client.ExecuteAsync<Booking>(request);
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         Assert.That(response.Data, Is.Not.Null);
-        Assert.That(response.Data.Firstname, Is.Not.Null.And.Not.Empty);
+        Assert.That(response.Data.Firstname, Is.EqualTo(newBookig.Firstname));
+        Assert.That(response.Data.Lastname, Is.EqualTo(newBookig.Lastname));
+        Assert.That(response.Data.Totalprice, Is.EqualTo(newBookig.Totalprice));
+        Assert.That(response.Data.Depositpaid, Is.EqualTo(newBookig.Depositpaid));
     }
 
     [Test]
     public async Task PostBooking_WithValidData_CreatesAndReturnsBookingId()
     {
         // Arrange
-        var newBooking = new Booking
+        var newBookig = new Booking
         {
             Firstname = "Niko",
             Lastname = "Dimitrov",
@@ -58,7 +62,7 @@ public class BookingTests
             Additionalneeds = "Breakfast"
         };
         var request = new RestRequest("/booking", Method.Post);
-        request.AddJsonBody(newBooking);
+        request.AddJsonBody(newBookig);
 
         // Act
         var response = await _client.ExecuteAsync<CreateBookingResponse>(request);
@@ -67,8 +71,8 @@ public class BookingTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         Assert.That(response.Data, Is.Not.Null);
         Assert.That(response.Data.Bookingid, Is.GreaterThan(0));
-        Assert.That(response.Data.Booking.Firstname, Is.EqualTo(newBooking.Firstname));
-        Assert.That(response.Data.Booking.Lastname, Is.EqualTo(newBooking.Lastname));
+        Assert.That(response.Data.Booking.Firstname, Is.EqualTo(newBookig.Firstname));
+        Assert.That(response.Data.Booking.Lastname, Is.EqualTo(newBookig.Lastname));
     }
 
     [Test]

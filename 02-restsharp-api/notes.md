@@ -191,9 +191,51 @@ First half of the POST/auth work. Focused only on authentication; POST /booking 
 - ⏳ FluentAssertions refactor — deferred to SDP-37392
 - ⏳ Optional cleanup pass (extract test helpers, remove weak `GetBooking_WithValidId_ReturnsBookingData` duplication) — Sub-session E
 
-### Next up (Sub-session E — cleanup / wrap-up)
+## Sub-session E - 2026-07-30 (~1h)
 
-- Extract test-data builder helper (`BuildTestBooking()`)
-- Extract common HTTP helpers (`CreateBooking()`, `AuthenticateAndGetToken()`) to reduce duplication
-- Decide fate of `GetBooking_WithValidId_ReturnsBookingData` (weak assert + hardcoded ID vs. full lifecycle)
-- Write Jira evidence comment, transition SDP-37391 to Code Review
+### What was covered
+
+Cleanup and refactor pass. No new tests, no new API calls — pure code quality improvements.
+
+- Extracted 3 private helper methods to remove duplication between `PostBooking_WithValidData_...`, `AuthTests.PostAuth_...`, and `FullLifecycle_...`:
+  - `BuildTestBooking()` — returns a pre-populated `Booking` for consistent test data
+  - `CreateBooking(booking)` — encapsulates POST /booking + returns `CreateBookingResponse.Data`
+  - `AuthenticateAndGetToken()` — encapsulates auth flow + returns just the token string
+- Refactored `FullLifecycle` Step 1 and Step 2 to use the new helpers. From ~100 lines to ~65.
+- Refactored the previously-weak `GetBooking_WithValidId_ReturnsBookingData` test:
+  - Renamed to `GetBooking_AfterCreation_ReturnsCorrectData`
+  - Removed hardcoded `/booking/3` dependency (fragile against shared sandbox state)
+  - Now creates its own booking via helpers, asserts field-by-field against `newBooking.X`
+  - Test is fully self-contained — will pass regardless of what other users do in the sandbox
+- Committed as two separate commits, one per logical change (helpers + refactor / weak test rework).
+
+### Key concepts introduced / reinforced
+
+- **DRY (Don't Repeat Yourself)** — Java-native principle, applies identically in C#. Extract when logic repeats.
+- **Helper methods return `response.Data`, not the full `RestResponse`** — the caller usually cares about the parsed body, not HTTP metadata. Trade-off: loses `StatusCode` access at the call site (but `Data != null` is a reasonable proxy for "success").
+- **Test independence** — self-contained tests don't depend on shared sandbox state. Best practice: each test creates and (ideally) cleans up its own data.
+- **One logical change per commit** — the extract-helpers refactor and the weak-test rework are separate concerns → separate commits. Easier to review, easier to revert selectively.
+- **`async Task<T>` for async helpers returning values** — same pattern as `async Task<AuthResponse>` in `ExecuteAsync<T>`.
+
+### Files touched this session
+
+- `BookingTests.cs` — refactored FullLifecycle, added 3 helpers, reworked GetBooking test
+- `notes.md` — this update
+
+### AC coverage — SDP-37391 (COMPLETE)
+
+- ✅ Test project created (NUnit)
+- ✅ GET requests (Ping, GetBooking after creation, GetBooking with invalid ID)
+- ✅ POST requests (Auth, CreateBooking)
+- ✅ DELETE requests (in full lifecycle, with token)
+- ✅ Status code assertions (200, 201, 404)
+- ✅ Response body validation via POCO deserialization + field-by-field assertions
+- ✅ Auth token flow (POST /auth → Cookie header on DELETE)
+- ✅ Helper method extraction to reduce duplication
+- ✅ Self-contained tests (no external test data dependencies)
+- ⏳ FluentAssertions refactor — deferred to SDP-37392
+
+### Next up
+
+- Post Jira evidence comment on SDP-37391, transition to Code Review
+- Start SDP-37392: FluentAssertions refactor of all 9 tests (`Assert.That` → `.Should()`)
