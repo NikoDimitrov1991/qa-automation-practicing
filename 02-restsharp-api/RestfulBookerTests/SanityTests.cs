@@ -1,3 +1,5 @@
+using FluentAssertions;
+
 namespace RestfulBookerTests;
 
 [NonParallelizable]
@@ -16,7 +18,7 @@ public class SanityTests
         int result = a + b;
 
         // Assert
-        Assert.That(result, Is.EqualTo(expected));
+        result.Should().Be(expected);
     }
 
     [Test]
@@ -30,7 +32,7 @@ public class SanityTests
         int expected = 11;
 
         // Assert
-        Assert.That(length, Is.EqualTo(expected));
+        length.Should().Be(expected);
     }
 
     [Test]
@@ -43,6 +45,6 @@ public class SanityTests
         bool containsKafka = topic.Contains("kafka");
 
         // Assert
-        Assert.That(containsKafka, Is.True);
+        containsKafka.Should().BeTrue();
     }
 }

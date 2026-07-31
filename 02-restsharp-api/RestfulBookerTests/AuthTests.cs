@@ -1,6 +1,7 @@
 using System.Net;
 using RestSharp;
 using RestfulBookerTests.Models;
+using FluentAssertions;
 
 namespace RestfulBookerTests;
 
@@ -36,8 +37,7 @@ public class AuthTests
         var response = await _client.ExecuteAsync<AuthResponse>(request);
 
         // Assert
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-        Assert.That(response.Data, Is.Not.Null);
-        Assert.That(response.Data.Token, Is.Not.Null.And.Not.Empty);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Data.Token.Should().NotBeNullOrEmpty();
     }
 }

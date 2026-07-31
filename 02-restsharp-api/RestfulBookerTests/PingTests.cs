@@ -1,5 +1,6 @@
 using System.Net;
 using RestSharp;
+using FluentAssertions;
 
 namespace RestfulBookerTests;
 
@@ -31,6 +32,6 @@ public class PingTests
         var response = await _client.ExecuteAsync(request);
 
         // Assert
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 }

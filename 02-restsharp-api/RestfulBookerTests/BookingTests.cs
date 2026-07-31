@@ -1,6 +1,7 @@
 using System.Net;
 using RestSharp;
 using RestfulBookerTests.Models;
+using FluentAssertions;
 
 namespace RestfulBookerTests;
 
@@ -28,27 +29,24 @@ public class BookingTests
     public async Task GetBooking_AfterCreation_ReturnsCorrectData()
     {
         // Arrange - create a fresh booking to guarantee it exists
-        var newBookig = BuildTestBooking();
-        var created = await CreateBooking(newBookig);
+        var newBooking = BuildTestBooking();
+        var created = await CreateBooking(newBooking);
 
         // Act
         var request = new RestRequest($"/booking/{created.Bookingid}", Method.Get);
         var response = await _client.ExecuteAsync<Booking>(request);
 
         // Assert
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-        Assert.That(response.Data, Is.Not.Null);
-        Assert.That(response.Data.Firstname, Is.EqualTo(newBookig.Firstname));
-        Assert.That(response.Data.Lastname, Is.EqualTo(newBookig.Lastname));
-        Assert.That(response.Data.Totalprice, Is.EqualTo(newBookig.Totalprice));
-        Assert.That(response.Data.Depositpaid, Is.EqualTo(newBookig.Depositpaid));
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Data.Should().NotBeNull();
+        response.Data.Should().BeEquivalentTo(newBooking);
     }
 
     [Test]
     public async Task PostBooking_WithValidData_CreatesAndReturnsBookingId()
     {
         // Arrange
-        var newBookig = new Booking
+        var newBooking = new Booking
         {
             Firstname = "Niko",
             Lastname = "Dimitrov",
@@ -62,17 +60,15 @@ public class BookingTests
             Additionalneeds = "Breakfast"
         };
         var request = new RestRequest("/booking", Method.Post);
-        request.AddJsonBody(newBookig);
+        request.AddJsonBody(newBooking);
 
         // Act
         var response = await _client.ExecuteAsync<CreateBookingResponse>(request);
 
         // Assert
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-        Assert.That(response.Data, Is.Not.Null);
-        Assert.That(response.Data.Bookingid, Is.GreaterThan(0));
-        Assert.That(response.Data.Booking.Firstname, Is.EqualTo(newBookig.Firstname));
-        Assert.That(response.Data.Booking.Lastname, Is.EqualTo(newBookig.Lastname));
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Data.Should().NotBeNull();
+        response.Data.Booking.Should().BeEquivalentTo(newBooking);
     }
 
     [Test]
@@ -85,8 +81,8 @@ public class BookingTests
         var response = await _client.ExecuteAsync<Booking>(request);
 
         // Assert
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
-        Assert.That(response.Data, Is.Null);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.Data.Should().BeNull();
     }
 
 
@@ -95,22 +91,18 @@ public class BookingTests
     {
         // Step 1: Authenticate
         var token = await AuthenticateAndGetToken();
-        Assert.That(token, Is.Not.Null);
-        Assert.That(token, Is.Not.Empty);
+        token.Should().NotBeNullOrEmpty();
 
         // Step 2: Create booking
         var newBooking = BuildTestBooking();
         var created = await CreateBooking(newBooking);
         var bookingId = created.Bookingid;
 
-        Assert.That(created, Is.Not.Null);
-        Assert.That(bookingId, Is.GreaterThan(0));
-        Assert.That(created.Booking.Firstname, Is.EqualTo(newBooking.Firstname));
-        Assert.That(created.Booking.Lastname, Is.EqualTo(newBooking.Lastname));
-        Assert.That(created.Booking.Totalprice, Is.EqualTo(newBooking.Totalprice));
-        Assert.That(created.Booking.Depositpaid, Is.EqualTo(newBooking.Depositpaid));
-        Assert.That(created.Booking.Additionalneeds, Is.EqualTo(newBooking.Additionalneeds));
-        
+        created.Should().NotBeNull();
+        bookingId.Should().BeGreaterThan(0);
+        created.Booking.Should().BeEquivalentTo(newBooking);
+
+
         // Step 3: Verify create - GET booking
 
         // Arrange
@@ -120,15 +112,9 @@ public class BookingTests
         var getResponse = await _client.ExecuteAsync<Booking>(getRequest);
 
         // Assert
-        Assert.That(getResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-        Assert.That(getResponse.Data, Is.Not.Null);
-        Assert.That(getResponse.Data.Firstname, Is.EqualTo(newBooking.Firstname));
-        Assert.That(getResponse.Data.Lastname, Is.EqualTo(newBooking.Lastname));
-        Assert.That(getResponse.Data.Additionalneeds, Is.EqualTo(newBooking.Additionalneeds));
-        Assert.That(getResponse.Data.Totalprice, Is.EqualTo(newBooking.Totalprice));
-        Assert.That(getResponse.Data.Depositpaid, Is.EqualTo(newBooking.Depositpaid));
-        Assert.That(getResponse.Data.Bookingdates.Checkin, Is.EqualTo(newBooking.Bookingdates.Checkin));
-        Assert.That(getResponse.Data.Bookingdates.Checkout, Is.EqualTo(newBooking.Bookingdates.Checkout));
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        getResponse.Data.Should().NotBeNull();
+        getResponse.Data.Should().BeEquivalentTo(newBooking);
 
         // Step 4: Delete booking
 
@@ -140,7 +126,7 @@ public class BookingTests
         var deleteResponse = await _client.ExecuteAsync(deleteRequest);
 
         // Assert
-        Assert.That(deleteResponse.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.Created);
 
 
         // Step 5: Verify delete - GET should return 404
@@ -152,8 +138,8 @@ public class BookingTests
         var verifyDeleteResponse = await _client.ExecuteAsync<Booking>(verifyDeleteRequest);
 
         // Assert 
-        Assert.That(verifyDeleteResponse.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
-        Assert.That(verifyDeleteResponse.Data, Is.Null);
+        verifyDeleteResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        verifyDeleteResponse.Data.Should().BeNull();
     }
 
     private Booking BuildTestBooking()

@@ -239,3 +239,80 @@ Cleanup and refactor pass. No new tests, no new API calls — pure code quality 
 
 - Post Jira evidence comment on SDP-37391, transition to Code Review
 - Start SDP-37392: FluentAssertions refactor of all 9 tests (`Assert.That` → `.Should()`)
+
+---
+
+# SDP-37392 — FluentAssertions
+
+**Jira:** [SDP-37392](https://draftkingsofficial.atlassian.net/browse/SDP-37392)
+
+## Single session - 2026-07-31 (~1.5h)
+
+### What was covered
+
+- Lecture: Why FluentAssertions (readability, English-like flow, better failure messages) and comparison table `Assert.That` → `.Should()`.
+- Installed `FluentAssertions 7.2.0` (pinned intentionally — version 8.x switched to a commercial license).
+- Refactored all 9 existing tests (`SanityTests`, `PingTests`, `AuthTests`, `BookingTests`) from NUnit `Assert.That` constraint syntax to FluentAssertions `.Should()` chain syntax.
+- Added `FluentAssertionsDemo.cs` — 4 new tests explicitly covering the AC-required assertion categories not naturally present in the API tests: collection assertions, exception assertions.
+
+### Key FluentAssertions concepts introduced
+
+- **`.Should()` entry point** — every value exposes it via extension methods.
+- **`.Be()` / `.NotBe()`** — value equality.
+- **`.NotBeNullOrEmpty()`** — one-line combined check for strings.
+- **`.BeGreaterThan()` / `.BeNull()` / `.NotBeNull()`** — numeric and null checks.
+- **`.HaveCount(n)`, `.Contain(item)`** — collection assertions.
+- **`Action act = () => throw ...; act.Should().Throw<T>().WithMessage(...)`** — exception assertions with lambda-wrapped code.
+- **`Action act = () => { ... }; act.Should().NotThrow();`** — assert code runs cleanly.
+- **`.BeEquivalentTo(otherObject)`** — recursive property-by-property object comparison, replacing 7+ individual `.Be()` asserts on nested POCOs.
+- **Variable name auto-inclusion in failure messages** — CallerArgumentExpression feature makes failures read "Expected `response.Data.Bookingid` to be 42..." instead of just "Expected 42, but was 0".
+
+### Big win: `BeEquivalentTo` for POCO comparison
+
+Sub-session D of SDP-37391 had `FullLifecycle_...` Step 2 asserting 7 individual fields to verify the echo response matched the sent booking. With FluentAssertions this collapsed to a single line:
+
+```csharp
+created.Booking.Should().BeEquivalentTo(newBooking);
+```
+
+Same coverage, one line, automatic recursive check into `Bookingdates`, and clear diff-style failure message on mismatch.
+
+### Mistakes and self-corrections
+
+- **Reversed `actual`/`expected` in a Sanity test** — wrote `expected.Should().Be(length)` instead of `length.Should().Be(expected)`. Functionally identical, but failure messages become misleading. FluentAssertions convention: actual left, expected right.
+- **`response.Data.Should().BeEquivalentTo(newBooking)` where `response.Data` was `CreateBookingResponse`** — type mismatch. Needed `.Booking` navigation first: `response.Data.Booking.Should().BeEquivalentTo(newBooking)`.
+- **`deleteResponse.Should().Be(HttpStatusCode.Created)`** — accidentally omitted `.StatusCode`. Compiler caught it.
+- **Typo `newBookig` propagated across multiple lines** — used Rider Shift+F6 (Rename refactoring) to fix everywhere at once.
+
+### Files touched this session
+
+- `RestfulBookerTests.csproj` — added `FluentAssertions 7.2.0`
+- `SanityTests.cs` — refactored 3 asserts
+- `PingTests.cs` — refactored 1 assert
+- `AuthTests.cs` — refactored 2 asserts, added missing status code check
+- `BookingTests.cs` — refactored ~25 asserts across 4 tests; used `BeEquivalentTo` for POCO comparisons
+- `FluentAssertionsDemo.cs` (new) — 4 demo tests for collection + exception assertions
+- `notes.md` — this section
+
+### AC coverage — SDP-37392 (COMPLETE)
+
+- ✅ Install and configure FluentAssertions NuGet package
+- ✅ Replace standard NUnit assertions with FluentAssertions syntax
+- ✅ Value assertions (`Should().Be()`, `Should().NotBe()`, `Should().BeGreaterThan()`, etc.)
+- ✅ Collection assertions (`Should().Contain()`, `Should().HaveCount()`)
+- ✅ Object equivalence (`Should().BeEquivalentTo()`) — used extensively in BookingTests
+- ✅ Exception assertions (`action.Should().Throw<T>()`, `.NotThrow()`, `.WithMessage()`)
+- ✅ Clear failure messages via CallerArgumentExpression (built-in, no config needed)
+- ✅ 4 example demo tests written (target was 3–5)
+
+Total tests in project after refactor: **13** (9 existing + 4 new demo tests), all passing.
+
+### Version pin note
+
+Locked to `7.2.0` on purpose. FluentAssertions 8.x moved to a commercial license (Xceed). For personal learning and non-commercial use, 7.x remains Apache 2.0. When contributing to Apollo repos later (SDP-37395), check what version they use — if newer, follow their license setup; otherwise stay on 7.x for personal work.
+
+### Next up
+
+- Publish evidence comment on SDP-37392 Jira ticket, transition to Code Review
+- Tick Confluence checklist Item 9 (FluentAssertions) and add cross-reference comment
+- Then: SDP-37393 (Offset Explorer / Kafka documentation) — should be relatively fast since Kafka Tool is already daily-work familiar
